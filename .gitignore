@@ -1,0 +1,83 @@
+# macOS / editor noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Rust build output
+target/
+**/target/
+
+# Rust profiling / debug artifacts
+*.pdb
+*.profraw
+*.profdata
+
+# Verilog / simulator output
+obj_dir/
+csrc/
+simv
+simv.daidir/
+work/
+INCA_libs/
+xcelium.d/
+*.jou
+*.log
+*.wdb
+*.wlf
+*.vcd
+*.vpd
+*.fst
+*.ghw
+*.lxt
+*.lxt2
+transcript
+vsim.wlf
+verilator_bin
+
+# Synthesis / implementation output
+build/
+dist/
+out/
+reports/
+*.rpt
+*.dcp
+*.bit
+*.edf
+*.ngc
+*.sdf
+*.saif
+*.sdc
+*.xdc
+
+# Generated ROM / memory preload files
+*.mem
+*.hex
+*.mif
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local env files
+.env
+.env.*
+.python-version
+.venv/
+venv/
+
+# Temporary test outputs
+tmp/
+.tmp/
+tests/tmp/
+tests/out/
+tests/generated/
+
+# Keep canonical checked-in artifacts visible
+!tests/input_000.bin
+!tests/checkpoints_000/
+!tests/checkpoints_000/**
+!weights/weights_v1.bin
+!spec/model_spec.json

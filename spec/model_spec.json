@@ -1,0 +1,435 @@
+{
+  "version": "transformer_v1",
+  "description": "Canonical small transformer spec for Rust/Verilog semantic matching",
+  "architecture": {
+    "vocab_size": 256,
+    "seq_len": 16,
+    "d_model": 32,
+    "n_heads": 2,
+    "d_head": 16,
+    "d_ff": 64,
+    "n_layers": 1,
+    "attention_type": "causal_mha",
+    "normalization": "rmsnorm",
+    "positional_encoding": "learned_absolute",
+    "activation": "relu",
+    "biases": false
+  },
+  "numerics": {
+    "reference_mode": {
+      "dtype": "float32"
+    },
+    "canonical_mode": {
+      "format": "Q8.8",
+      "storage_dtype": "int16",
+      "accumulator_dtype": "int32",
+      "frac_bits": 8,
+      "rounding": "truncate_toward_zero",
+      "saturation_on_narrowing": true,
+      "endianness": "little"
+    },
+    "constants": {
+      "eps": 1e-05,
+      "eps_q88": 1,
+      "eps_q16": 1,
+      "attention_scale": 0.25,
+      "attention_scale_q88": 64,
+      "mask_neg": -32768,
+      "inv_d_model": 0.03125,
+      "inv_d_model_q16": 2048
+    },
+    "operator_semantics": {
+      "storage_dtype": "int16",
+      "format": "Q8.8",
+      "frac_bits": 8,
+      "accumulator_dtype": "int32",
+      "real_value_rule": "stored_int16 / 256",
+      "multiply": {
+        "rule": "prod32 = (int32)a * (int32)b",
+        "intermediate_format": "Q16.16",
+        "requantize_rule": "result16 = requantize_q16_to_q8(prod32)"
+      },
+      "right_shift": {
+        "kind": "arithmetic",
+        "rust_rule": "signed_shift",
+        "verilog_rule": ">>>",
+        "usage": "internal_scaling_only_when_explicit"
+      },
+      "accumulation": {
+        "dtype": "int32",
+        "format": "Q16.16",
+        "saturating": false
+      },
+      "requantization": {
+        "mode": "truncate_toward_zero",
+        "rule": "if x >= 0 then tmp = x >> frac_bits else tmp = -((-x) >> frac_bits); result = saturate_int16(tmp)",
+        "helper_name": "requantize_q16_to_q8",
+        "input_format": "Q16.16",
+        "output_format": "Q8.8"
+      },
+      "saturation": {
+        "only_on_explicit_narrowing": true,
+        "int16_min": -32768,
+        "int16_max": 32767,
+        "not_applied_during": [
+          "multiplication",
+          "accumulation",
+          "mask_insertion",
+          "max_reduction"
+        ],
+        "applied_when_writing": [
+          "int16_storage_tensors",
+          "checkpoint_dumps",
+          "weight_outputs",
+          "residual_outputs"
+        ]
+      },
+      "residual_add": {
+        "rule": "tmp32 = (int32)a + (int32)b; out16 = saturate_int16(tmp32)"
+      },
+      "mask_writes": {
+        "value": -32768,
+        "bypass_arithmetic_pipeline": true
+      },
+      "score_scaling": {
+        "scale_q88": 64,
+        "rule": "scaled = (score * scale_q88) >> 8",
+        "output_format": "Q8.8"
+      },
+      "checkpoint_dump": {
+        "storage_dtype": "int16_le",
+        "format": "Q8.8",
+        "rule": "value = requantize_q16_to_q8(accumulator); write(value)"
+      },
+      "narrowing_boundaries": [
+        "linear_projection_outputs",
+        "normalization_outputs",
+        "attention_outputs",
+        "ffn_layer_outputs",
+        "residual_outputs",
+        "final_logits",
+        "checkpoint_dumps"
+      ],
+      "determinism_rule": "bit_exact_rust_equals_verilog",
+      "requantization_compliance": "Rust_requantize(x) == Verilog_requantize(x) for every int32 input"
+    },
+    "kernels": {
+      "rmsnorm": {
+        "algorithm": "canonical_lut_rsqrt",
+        "input_format": "Q8.8",
+        "square_accumulator_format": "Q16.16",
+        "mean_square_format": "Q16.16",
+        "rsqrt_lut": {
+          "path": "spec/luts/rsqrt_lut.bin",
+          "storage_dtype": "int16_le",
+          "input_format": "Q16.16",
+          "address_bits": 12,
+          "entries": 4096,
+          "input_clamp": [
+            0.0,
+            8.0
+          ],
+          "output_format": "Q8.8",
+          "interpolation": "none"
+        }
+      },
+      "softmax": {
+        "algorithm": "canonical_lut_exp_recip",
+        "input_format": "Q8.8",
+        "exp_input_clamp_q88": [
+          -2048,
+          0
+        ],
+        "sum_exp_format": "Q16.16",
+        "exp_lut": {
+          "path": "spec/luts/exp_lut.bin",
+          "storage_dtype": "int16_le",
+          "input_format": "Q8.8",
+          "address_bits": 10,
+          "entries": 1024,
+          "input_clamp": [
+            -8.0,
+            0.0
+          ],
+          "output_format": "Q8.8",
+          "interpolation": "none"
+        },
+        "recip_lut": {
+          "path": "spec/luts/recip_lut.bin",
+          "storage_dtype": "int16_le",
+          "input_format": "Q16.16",
+          "address_bits": 12,
+          "entries": 4096,
+          "input_range": [
+            0.0,
+            16.0
+          ],
+          "output_format": "Q8.8",
+          "interpolation": "none"
+        }
+      }
+    }
+  },
+  "serialization": {
+    "layout": "row_major",
+    "binary_dtype": "int16_le",
+    "weights_file": "weights/weights_v1.bin"
+  },
+  "layout_rules": {
+    "storage_layout": "row_major",
+    "binary_dtype": "int16_le",
+    "tensor_offset_rules": {
+      "rank2": "offset(a, b) = a * B + b",
+      "rank3": "offset(a, b, c) = (a * B + b) * C + c"
+    },
+    "implicit_transpose_on_load": false,
+    "matmul": {
+      "convention": "y = x @ W",
+      "vector_orientation": "row_vector",
+      "x_shape": "[N, K]",
+      "w_shape": "[K, M]",
+      "y_shape": "[N, M]",
+      "equation": "y[n, m] = sum_k (x[n, k] * W[k, m])",
+      "allow_column_major_assumptions": false,
+      "allow_transposed_weights": false
+    },
+    "head_packing": {
+      "d_model_rule": "d_model = n_heads * d_head",
+      "reshape_rule": "q[t, h, d] = q_flat[t, h * d_head + d]",
+      "applies_to": [
+        "q",
+        "k",
+        "v"
+      ],
+      "flat_channel_rule": "flat_channel = h * d_head + d",
+      "context_shape": "[n_heads, seq_len, d_head]",
+      "context_rule": "ctx[h, tq, d] = sum_tk (attn_probs[h, tq, tk] * v[tk, h, d])",
+      "concat_rule": "ctx_flat[t, h * d_head + d] = ctx[h, t, d]",
+      "channel_order_example": [
+        "head0_d0 ... head0_d15",
+        "head1_d0 ... head1_d15"
+      ]
+    },
+    "projections": {
+      "qkv": {
+        "q_flat": "[seq_len, d_model]",
+        "k_flat": "[seq_len, d_model]",
+        "v_flat": "[seq_len, d_model]"
+      },
+      "attention_output": {
+        "ctx_flat": "[seq_len, d_model]",
+        "w_o": "[d_model, d_model]",
+        "attn_out": "[seq_len, d_model]"
+      },
+      "ffn": {
+        "w1": "[d_model, d_ff]",
+        "w2": "[d_ff, d_model]"
+      },
+      "lm_head": {
+        "x_out": "[seq_len, d_model]",
+        "lm_head": "[d_model, vocab_size]",
+        "logits": "[seq_len, vocab_size]"
+      }
+    },
+    "prohibited_variations": [
+      "transpose_weight_matrices",
+      "store_per_head_tensors_separately",
+      "reorder_head_packing",
+      "reinterpret_tensors_as_column_major",
+      "implicitly_reshape_weights_during_load"
+    ]
+  },
+  "tensors": [
+    {
+      "name": "tok_embedding",
+      "shape": [
+        256,
+        32
+      ],
+      "dtype": "int16",
+      "order": 0
+    },
+    {
+      "name": "pos_embedding",
+      "shape": [
+        16,
+        32
+      ],
+      "dtype": "int16",
+      "order": 1
+    },
+    {
+      "name": "norm1_weight",
+      "shape": [
+        32
+      ],
+      "dtype": "int16",
+      "order": 2
+    },
+    {
+      "name": "w_q",
+      "shape": [
+        32,
+        32
+      ],
+      "dtype": "int16",
+      "order": 3
+    },
+    {
+      "name": "w_k",
+      "shape": [
+        32,
+        32
+      ],
+      "dtype": "int16",
+      "order": 4
+    },
+    {
+      "name": "w_v",
+      "shape": [
+        32,
+        32
+      ],
+      "dtype": "int16",
+      "order": 5
+    },
+    {
+      "name": "w_o",
+      "shape": [
+        32,
+        32
+      ],
+      "dtype": "int16",
+      "order": 6
+    },
+    {
+      "name": "norm2_weight",
+      "shape": [
+        32
+      ],
+      "dtype": "int16",
+      "order": 7
+    },
+    {
+      "name": "w1",
+      "shape": [
+        32,
+        64
+      ],
+      "dtype": "int16",
+      "order": 8
+    },
+    {
+      "name": "w2",
+      "shape": [
+        64,
+        32
+      ],
+      "dtype": "int16",
+      "order": 9
+    },
+    {
+      "name": "lm_head",
+      "shape": [
+        32,
+        256
+      ],
+      "dtype": "int16",
+      "order": 10
+    }
+  ],
+  "checkpoints": [
+    "x_tok",
+    "x_in",
+    "norm1_out",
+    "q_flat",
+    "k_flat",
+    "v_flat",
+    "scores_pre_mask",
+    "scores_post_mask",
+    "attn_probs",
+    "ctx_flat",
+    "attn_out",
+    "resid1_out",
+    "norm2_out",
+    "ffn_h1",
+    "ffn_relu",
+    "ffn_out",
+    "block_out",
+    "logits"
+  ],
+  "test_vectors": {
+    "canonical_input_000": {
+      "path": "tests/input_000.bin",
+      "dtype": "uint8",
+      "length": 16,
+      "generation_rule": "token[t] = (t * 7 + 3) mod vocab_size",
+      "tokens": [
+        3,
+        10,
+        17,
+        24,
+        31,
+        38,
+        45,
+        52,
+        59,
+        66,
+        73,
+        80,
+        87,
+        94,
+        101,
+        108
+      ]
+    },
+    "checkpoint_dump_000": {
+      "directory": "tests/checkpoints_000",
+      "dtype": "int16_le",
+      "format": "Q8.8",
+      "layout": "row_major",
+      "compression": "none",
+      "padding": "none",
+      "files": [
+        "x_tok.bin",
+        "x_in.bin",
+        "norm1_out.bin",
+        "q_flat.bin",
+        "k_flat.bin",
+        "v_flat.bin",
+        "scores_pre_mask.bin",
+        "scores_post_mask.bin",
+        "attn_probs.bin",
+        "ctx_flat.bin",
+        "attn_out.bin",
+        "resid1_out.bin",
+        "norm2_out.bin",
+        "ffn_h1.bin",
+        "ffn_relu.bin",
+        "ffn_out.bin",
+        "block_out.bin",
+        "logits.bin"
+      ],
+      "dump_rule": "tmp = arithmetic_shift_right(accumulator, frac_bits); value = saturate_int16(tmp); write(value)"
+    },
+    "reference_generator": {
+      "command": "cargo run --bin dump_reference",
+      "weights_file": "weights/weights_v1.bin",
+      "outputs": [
+        "tests/input_000.bin",
+        "tests/checkpoints_000/*"
+      ]
+    },
+    "acceptance": {
+      "verilog_must_match": "tests/checkpoints_000/*",
+      "comparison_rule": "cmp rust_output.bin verilator_output.bin",
+      "comparison_mode": "bit_exact"
+    }
+  },
+  "initialization": {
+    "scheme": "deterministic_linear_index",
+    "formula": "raw(i) = ((i * 17 + 23) mod 251) - 125",
+    "stored_value": "int16(raw(i))",
+    "real_value": "stored_value / 256.0"
+  }
+}

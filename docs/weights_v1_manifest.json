@@ -1,0 +1,149 @@
+{
+  "version": "transformer_v1",
+  "binary_dtype": "int16_le",
+  "layout": "row_major",
+  "frac_bits": 8,
+  "tensors": [
+    {
+      "order": 0,
+      "name": "tok_embedding",
+      "shape": [
+        256,
+        32
+      ],
+      "numel": 8192,
+      "byte_offset": 0,
+      "byte_length": 16384,
+      "global_index_start": 0,
+      "global_index_end_exclusive": 8192
+    },
+    {
+      "order": 1,
+      "name": "pos_embedding",
+      "shape": [
+        16,
+        32
+      ],
+      "numel": 512,
+      "byte_offset": 16384,
+      "byte_length": 1024,
+      "global_index_start": 8192,
+      "global_index_end_exclusive": 8704
+    },
+    {
+      "order": 2,
+      "name": "norm1_weight",
+      "shape": [
+        32
+      ],
+      "numel": 32,
+      "byte_offset": 17408,
+      "byte_length": 64,
+      "global_index_start": 8704,
+      "global_index_end_exclusive": 8736
+    },
+    {
+      "order": 3,
+      "name": "w_q",
+      "shape": [
+        32,
+        32
+      ],
+      "numel": 1024,
+      "byte_offset": 17472,
+      "byte_length": 2048,
+      "global_index_start": 8736,
+      "global_index_end_exclusive": 9760
+    },
+    {
+      "order": 4,
+      "name": "w_k",
+      "shape": [
+        32,
+        32
+      ],
+      "numel": 1024,
+      "byte_offset": 19520,
+      "byte_length": 2048,
+      "global_index_start": 9760,
+      "global_index_end_exclusive": 10784
+    },
+    {
+      "order": 5,
+      "name": "w_v",
+      "shape": [
+        32,
+        32
+      ],
+      "numel": 1024,
+      "byte_offset": 21568,
+      "byte_length": 2048,
+      "global_index_start": 10784,
+      "global_index_end_exclusive": 11808
+    },
+    {
+      "order": 6,
+      "name": "w_o",
+      "shape": [
+        32,
+        32
+      ],
+      "numel": 1024,
+      "byte_offset": 23616,
+      "byte_length": 2048,
+      "global_index_start": 11808,
+      "global_index_end_exclusive": 12832
+    },
+    {
+      "order": 7,
+      "name": "norm2_weight",
+      "shape": [
+        32
+      ],
+      "numel": 32,
+      "byte_offset": 25664,
+      "byte_length": 64,
+      "global_index_start": 12832,
+      "global_index_end_exclusive": 12864
+    },
+    {
+      "order": 8,
+      "name": "w1",
+      "shape": [
+        32,
+        64
+      ],
+      "numel": 2048,
+      "byte_offset": 25728,
+      "byte_length": 4096,
+      "global_index_start": 12864,
+      "global_index_end_exclusive": 14912
+    },
+    {
+      "order": 9,
+      "name": "w2",
+      "shape": [
+        64,
+        32
+      ],
+      "numel": 2048,
+      "byte_offset": 29824,
+      "byte_length": 4096,
+      "global_index_start": 14912,
+      "global_index_end_exclusive": 16960
+    },
+    {
+      "order": 10,
+      "name": "lm_head",
+      "shape": [
+        32,
+        256
+      ],
+      "numel": 8192,
+      "byte_offset": 33920,
+      "byte_length": 16384,
+      "global_index_start": 16960,
+      "global_index_end_exclusive": 25152
+    }
+  ]
+}
