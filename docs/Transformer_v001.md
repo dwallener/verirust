@@ -471,6 +471,26 @@ output format: Q8.8
 interpolation: none
 ```
 
+Address mapping:
+
+```text
+clamped = clamp(mean_sq_eps, 0, 8 * 65536)
+index = floor((clamped * 4095) / (8 * 65536))
+rsqrt = rsqrt_lut[index]
+```
+
+LUT generation rule:
+
+```text
+for index in 0..4095
+    x_real = index / 4095 * 8.0
+    if x_real <= 0
+        y_real = 255.99609375
+    else
+        y_real = 1 / sqrt(x_real)
+    rsqrt_lut[index] = float_to_q88(y_real)
+```
+
 Step 5 - Normalize:
 
 For each channel:
@@ -562,6 +582,23 @@ output format : Q8.8
 interpolation : none
 ```
 
+Address mapping:
+
+```text
+clamped = clamp(shifted, -2048, 0)
+index = floor(((clamped + 2048) * 1023) / 2048)
+exp_val = exp_lut[index]
+```
+
+LUT generation rule:
+
+```text
+for index in 0..1023
+    x_real = -8.0 + (index / 1023) * 8.0
+    y_real = exp(x_real)
+    exp_lut[index] = float_to_q88(y_real)
+```
+
 Step 5 - Sum exponentials:
 
 ```text
@@ -592,6 +629,26 @@ input format : Q16.16
 address bits : 12
 range        : [0 , 16]
 output       : Q8.8
+```
+
+Address mapping:
+
+```text
+clamped = clamp(sum_exp, 0, 16 * 65536)
+index = floor((clamped * 4095) / (16 * 65536))
+inv_sum = recip_lut[index]
+```
+
+LUT generation rule:
+
+```text
+for index in 0..4095
+    x_real = index / 4095 * 16.0
+    if x_real <= 0
+        y_real = 255.99609375
+    else
+        y_real = 1 / x_real
+    recip_lut[index] = float_to_q88(y_real)
 ```
 
 Step 7 - Normalize probabilities:
@@ -646,6 +703,19 @@ little endian int16
 
 Both Rust and Verilog must read the same LUT files.
 They must not regenerate LUTs independently.
+
+## LUT Mapping Rule
+
+All canonical LUT lookups use linear mapping from the clamped input domain to
+the integer address range:
+
+```text
+index = floor((normalized_input) * (entries - 1))
+```
+
+where `normalized_input` is the clamped input value rescaled into `[0, 1]`.
+
+No interpolation, midpoint rounding, or alternate binning rule is permitted.
 
 ## Rounding Policy
 

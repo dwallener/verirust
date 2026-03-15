@@ -1,0 +1,16 @@
+[package]
+name = "verirust"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "verirust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "verirust"
+path = "src/main.rs"
+
+[[bin]]
+name = "dump_reference"
+path = "src/bin/dump_reference.rs"

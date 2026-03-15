@@ -130,7 +130,9 @@
             8.0
           ],
           "output_format": "Q8.8",
-          "interpolation": "none"
+          "interpolation": "none",
+          "address_mapping": "index = floor((clamp(x, 0, 8 * 65536) * 4095) / (8 * 65536))",
+          "generation_rule": "for index in 0..4095: x_real = index / 4095 * 8.0; y_real = 255.99609375 if x_real <= 0 else 1 / sqrt(x_real); lut[index] = float_to_q88(y_real)"
         }
       },
       "softmax": {
@@ -152,7 +154,9 @@
             0.0
           ],
           "output_format": "Q8.8",
-          "interpolation": "none"
+          "interpolation": "none",
+          "address_mapping": "index = floor(((clamp(x, -2048, 0) + 2048) * 1023) / 2048)",
+          "generation_rule": "for index in 0..1023: x_real = -8.0 + (index / 1023) * 8.0; y_real = exp(x_real); lut[index] = float_to_q88(y_real)"
         },
         "recip_lut": {
           "path": "spec/luts/recip_lut.bin",
@@ -165,7 +169,9 @@
             16.0
           ],
           "output_format": "Q8.8",
-          "interpolation": "none"
+          "interpolation": "none",
+          "address_mapping": "index = floor((clamp(x, 0, 16 * 65536) * 4095) / (16 * 65536))",
+          "generation_rule": "for index in 0..4095: x_real = index / 4095 * 16.0; y_real = 255.99609375 if x_real <= 0 else 1 / x_real; lut[index] = float_to_q88(y_real)"
         }
       }
     }
