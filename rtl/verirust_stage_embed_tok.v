@@ -28,35 +28,35 @@ output reg signed [15:0] wr_data;
 
 reg [4:0] row_idx;
 reg [5:0] chan_idx;
-integer row;
-integer chan;
+reg [15:0] row_base;
 
 always @* begin
-    row = phase_first ? 0 : row_idx;
-    chan = phase_first ? 0 : chan_idx;
-    token_rd_addr = row[7:0];
-    tok_embed_addr = token_value * `VERIRUST_D_MODEL + chan;
+    token_rd_addr = phase_first ? 8'd0 : row_idx;
+    tok_embed_addr = (token_value << 5) + (phase_first ? 16'd0 : chan_idx);
     wr_en = en;
-    wr_addr = row * `VERIRUST_D_MODEL + chan;
+    wr_addr = (phase_first ? 16'd0 : row_base) + (phase_first ? 16'd0 : chan_idx);
     wr_data = tok_embed_value;
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         row_idx <= 0;
         chan_idx <= 0;
+        row_base <= 0;
     end else if (en) begin
-        row = phase_first ? 0 : row_idx;
-        chan = phase_first ? 0 : chan_idx;
-        if (chan == (`VERIRUST_D_MODEL - 1)) begin
+        if ((phase_first ? 6'd0 : chan_idx) == (`VERIRUST_D_MODEL - 1)) begin
             chan_idx <= 0;
-            if (row == (`VERIRUST_SEQ_LEN - 1))
+            if ((phase_first ? 5'd0 : row_idx) == (`VERIRUST_SEQ_LEN - 1)) begin
                 row_idx <= 0;
-            else
-                row_idx <= row + 1;
+                row_base <= 0;
+            end else begin
+                row_idx <= (phase_first ? 5'd0 : row_idx) + 1'b1;
+                row_base <= (phase_first ? 16'd0 : row_base) + `VERIRUST_D_MODEL;
+            end
         end else begin
-            row_idx <= row;
-            chan_idx <= chan + 1;
+            row_idx <= phase_first ? 5'd0 : row_idx;
+            row_base <= phase_first ? 16'd0 : row_base;
+            chan_idx <= (phase_first ? 6'd0 : chan_idx) + 1'b1;
         end
     end
 end

@@ -24,13 +24,10 @@ output reg signed [15:0] wr_data;
 
 reg [4:0] row_idx;
 reg [6:0] col_idx;
-integer row;
-integer col;
+reg [15:0] row_base;
 
 always @* begin
-    row = phase_first ? 0 : row_idx;
-    col = phase_first ? 0 : col_idx;
-    rd_addr = row * `VERIRUST_D_FF + col;
+    rd_addr = (phase_first ? 16'd0 : row_base) + (phase_first ? 16'd0 : col_idx);
     wr_addr = rd_addr;
     wr_en = en;
     if (in_value[15])
@@ -39,22 +36,25 @@ always @* begin
         wr_data = in_value;
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         row_idx <= 0;
         col_idx <= 0;
+        row_base <= 0;
     end else if (en) begin
-        row = phase_first ? 0 : row_idx;
-        col = phase_first ? 0 : col_idx;
-        if (col == (`VERIRUST_D_FF - 1)) begin
+        if ((phase_first ? 7'd0 : col_idx) == (`VERIRUST_D_FF - 1)) begin
             col_idx <= 0;
-            if (row == (`VERIRUST_SEQ_LEN - 1))
+            if ((phase_first ? 5'd0 : row_idx) == (`VERIRUST_SEQ_LEN - 1)) begin
                 row_idx <= 0;
-            else
-                row_idx <= row + 1;
+                row_base <= 0;
+            end else begin
+                row_idx <= (phase_first ? 5'd0 : row_idx) + 1'b1;
+                row_base <= (phase_first ? 16'd0 : row_base) + `VERIRUST_D_FF;
+            end
         end else begin
-            row_idx <= row;
-            col_idx <= col + 1;
+            row_idx <= phase_first ? 5'd0 : row_idx;
+            row_base <= phase_first ? 16'd0 : row_base;
+            col_idx <= (phase_first ? 7'd0 : col_idx) + 1'b1;
         end
     end
 end

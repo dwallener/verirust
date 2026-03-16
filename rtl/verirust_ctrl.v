@@ -90,7 +90,7 @@ function [4:0] next_phase;
     end
 endfunction
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         phase <= PH_IDLE;
         phase_index <= 0;

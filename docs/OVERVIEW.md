@@ -21,9 +21,9 @@ Yosys scripts:
 Shell entry points:
 	•	`/Users/damir00/Sandbox/verirust/scripts/elab_flexible.sh`
 	•	`/Users/damir00/Sandbox/verirust/scripts/elab_frozen.sh`
-	•	`/Users/damir00/Sandbox/verirust/scripts/synth_flexible.sh [quick|full]`
-	•	`/Users/damir00/Sandbox/verirust/scripts/synth_frozen.sh [quick|full]`
-	•	`/Users/damir00/Sandbox/verirust/scripts/compare_synth.sh [quick|full]`
+	•	`/Users/damir00/Sandbox/verirust/scripts/synth_flexible.sh [lite|quick|full] [nangate|sky130|plain]`
+	•	`/Users/damir00/Sandbox/verirust/scripts/synth_frozen.sh [lite|quick|full] [nangate|sky130|plain]`
+	•	`/Users/damir00/Sandbox/verirust/scripts/compare_synth.sh [lite|quick|full] [nangate|sky130|plain]`
 
 Elaboration-only usage:
 	•	`elab_flexible.sh` is the lightest Yosys sanity check for the flexible top
@@ -44,8 +44,15 @@ Elaboration-only usage:
 	•	the intended invariant is: frozen and flexible share the same controller/datapath/math, with storage implementation as the only conceptual difference
 
 Mode definitions:
+	•	`lite` runs `check`, `proc`, `opt`, `opt_clean`, and `stat`
+	•	`lite` is the fastest way to confirm that reduction/simplification is happening at all
 	•	`quick` runs `check`, `proc`, `opt`, `memory`, `techmap`, and `stat` only
-	•	`full` adds `abc -liberty +/techlibs/generic/generic.lib` before `stat`
+	•	`full` can use `nangate`, `sky130`, or `plain`
+	•	`nangate` maps with `synth/lib/NangateOpenCellLibrary_typical.lib`
+	•	`sky130` maps with `synth/lib/sky130_fd_sc_hd__tt_025C_1v80.lib`
+	•	`plain` runs `abc` without a liberty
+	•	if the selected liberty is missing, the wrapper falls back to plain `abc`
+	•	this is necessary because the installed Homebrew Yosys 0.63 package does not ship `share/yosys/techlibs/generic/generic.lib`
 
 Frozen-RTL generation:
 	•	before any frozen synthesis run, execute `cargo run --bin generate_frozen_rtl`
@@ -55,7 +62,14 @@ Frozen-RTL generation:
 	•	`spec/luts/rsqrt_lut.bin`
 	•	`spec/luts/recip_lut.bin`
 
+Bundled standard-cell liberty:
+	•	`full` mode uses `/Users/damir00/Sandbox/verirust/synth/lib/NangateOpenCellLibrary_typical.lib` when present
+	•	`full` mode can also use `/Users/damir00/Sandbox/verirust/synth/lib/sky130_fd_sc_hd__tt_025C_1v80.lib`
+	•	these are bundled liberties for rough mapped comparisons, not a claim about final implementation technology
+
 Recommended usage:
+	1.	run `synth_frozen.sh lite` if you only want immediate confirmation that reduction is happening
+	2.	run `synth_flexible.sh lite` if you want the analogous flexible baseline
 	1.	run `synth_flexible.sh quick`
 	2.	run `synth_frozen.sh quick`
 	3.	compare structural size first
@@ -66,6 +80,20 @@ Log output:
 	•	quick mode writes `*_quick.log`
 	•	full mode writes `*_full.log`
 	•	microarchitecture intent is documented in `/Users/damir00/Sandbox/verirust/docs/MICROARCHITECTURE.md`
+
+Current synthesis snapshot:
+
+| Mode | Flexible cells | Frozen cells | Frozen delta |
+| --- | ---: | ---: | ---: |
+| `lite` | 1,250 | 1,095 | -12.4% |
+| `quick` | 2,275,958 | 566,150 | -75.1% |
+| `full` | 2,875,666 | 658,051 | -77.1% |
+
+Interpretation:
+	•	`lite` shows both designs are structurally similar before heavy lowering
+	•	`quick` and `full` show the real effect of frozen storage: large reductions in muxing, storage-control logic, and wiring
+	•	the biggest implementation artifact difference is the flexible RAM-like store fabric, not the shared stage math
+	•	these numbers are rough Yosys snapshots for this repo state, not final silicon claims
 
 ⸻
 

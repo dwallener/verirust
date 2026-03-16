@@ -31,11 +31,10 @@ output reg signed [15:0] wr_data;
 reg [15:0] row_idx;
 reg [15:0] col_idx;
 reg [15:0] inner_idx;
+reg [15:0] lhs_row_base;
+reg [15:0] wr_row_base;
+reg [15:0] rhs_row_base;
 reg signed [31:0] acc_reg;
-
-integer row;
-integer col;
-integer inner;
 reg signed [31:0] prod32;
 
 function signed [15:0] saturate_i16;
@@ -63,49 +62,57 @@ function signed [15:0] requantize_q16_to_q8;
 endfunction
 
 always @* begin
-    row = phase_first ? 0 : row_idx;
-    col = phase_first ? 0 : col_idx;
-    inner = phase_first ? 0 : inner_idx;
-    lhs_rd_addr = row * INNER + inner;
-    rhs_addr = inner * COLS + col;
-    wr_en = en && (inner == INNER);
-    wr_addr = row * COLS + col;
+    lhs_rd_addr = (phase_first ? 16'd0 : lhs_row_base) + (phase_first ? 16'd0 : inner_idx);
+    rhs_addr = (phase_first ? 16'd0 : rhs_row_base) + (phase_first ? 16'd0 : col_idx);
+    wr_en = en && ((phase_first ? 16'd0 : inner_idx) == INNER);
+    wr_addr = (phase_first ? 16'd0 : wr_row_base) + (phase_first ? 16'd0 : col_idx);
     wr_data = requantize_q16_to_q8(acc_reg);
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         row_idx <= 0;
         col_idx <= 0;
         inner_idx <= 0;
+        lhs_row_base <= 0;
+        wr_row_base <= 0;
+        rhs_row_base <= 0;
         acc_reg <= 32'sd0;
     end else if (en) begin
-        row = phase_first ? 0 : row_idx;
-        col = phase_first ? 0 : col_idx;
-        inner = phase_first ? 0 : inner_idx;
-        if (inner < INNER) begin
+        if ((phase_first ? 16'd0 : inner_idx) < INNER) begin
             prod32 = lhs_value * rhs_value;
-            if (inner == 0)
+            if ((phase_first ? 16'd0 : inner_idx) == 0)
                 acc_reg <= prod32;
             else
                 acc_reg <= acc_reg + prod32;
         end
-        if (inner == INNER) begin
+        if ((phase_first ? 16'd0 : inner_idx) == INNER) begin
             inner_idx <= 0;
-            if (col == (COLS - 1)) begin
+            rhs_row_base <= 0;
+            if ((phase_first ? 16'd0 : col_idx) == (COLS - 1)) begin
                 col_idx <= 0;
-                if (row == (ROWS - 1))
+                if ((phase_first ? 16'd0 : row_idx) == (ROWS - 1)) begin
                     row_idx <= 0;
-                else
-                    row_idx <= row + 1;
+                    lhs_row_base <= 0;
+                    wr_row_base <= 0;
+                end else begin
+                    row_idx <= (phase_first ? 16'd0 : row_idx) + 1'b1;
+                    lhs_row_base <= (phase_first ? 16'd0 : lhs_row_base) + INNER;
+                    wr_row_base <= (phase_first ? 16'd0 : wr_row_base) + COLS;
+                end
             end else begin
-                col_idx <= col + 1;
-                row_idx <= row;
+                col_idx <= (phase_first ? 16'd0 : col_idx) + 1'b1;
+                row_idx <= phase_first ? 16'd0 : row_idx;
+                lhs_row_base <= phase_first ? 16'd0 : lhs_row_base;
+                wr_row_base <= phase_first ? 16'd0 : wr_row_base;
             end
         end else begin
-            row_idx <= row;
-            col_idx <= col;
-            inner_idx <= inner + 1;
+            row_idx <= phase_first ? 16'd0 : row_idx;
+            col_idx <= phase_first ? 16'd0 : col_idx;
+            lhs_row_base <= phase_first ? 16'd0 : lhs_row_base;
+            wr_row_base <= phase_first ? 16'd0 : wr_row_base;
+            inner_idx <= (phase_first ? 16'd0 : inner_idx) + 1'b1;
+            rhs_row_base <= (phase_first ? 16'd0 : rhs_row_base) + COLS;
         end
     end
 end

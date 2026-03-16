@@ -29,14 +29,13 @@ output reg signed [15:0] wr_data;
 reg [4:0] tq_idx;
 reg [5:0] packed_idx;
 reg [4:0] tk_idx;
+reg [15:0] tq_base;
+reg [15:0] tk_base;
+reg [15:0] prob_head_base;
 reg signed [31:0] acc_reg;
-
-integer tq;
-integer packed_chan;
-integer tk;
-integer head;
-integer chan;
 reg signed [31:0] prod32;
+reg [5:0] chan_idx;
+reg [5:0] head_chan_base;
 
 function signed [15:0] saturate_i16;
     input signed [31:0] x;
@@ -63,66 +62,65 @@ function signed [15:0] requantize_q16_to_q8;
 endfunction
 
 always @* begin
-    tq = phase_first ? 0 : tq_idx;
-    packed_chan = phase_first ? 0 : packed_idx;
-    tk = phase_first ? 0 : tk_idx;
-    if (packed_chan < `VERIRUST_D_HEAD) begin
-        head = 0;
-        chan = packed_chan;
+    if ((phase_first ? 6'd0 : packed_idx) < `VERIRUST_D_HEAD) begin
+        chan_idx = phase_first ? 6'd0 : packed_idx;
+        head_chan_base = 6'd0;
     end else begin
-        head = 1;
-        chan = packed_chan - `VERIRUST_D_HEAD;
+        chan_idx = (phase_first ? 6'd0 : packed_idx) - `VERIRUST_D_HEAD;
+        head_chan_base = `VERIRUST_D_HEAD;
     end
-    prob_rd_addr = (head * `VERIRUST_SEQ_LEN + tq) * `VERIRUST_SEQ_LEN + tk;
-    v_rd_addr = tk * `VERIRUST_D_MODEL + head * `VERIRUST_D_HEAD + chan;
-    wr_en = en && (tk == `VERIRUST_SEQ_LEN);
-    wr_addr = tq * `VERIRUST_D_MODEL + packed_chan;
+    prob_rd_addr = (phase_first ? 16'd0 : prob_head_base) + (phase_first ? 16'd0 : tk_idx);
+    v_rd_addr = (phase_first ? 16'd0 : tk_base) + head_chan_base + chan_idx;
+    wr_en = en && ((phase_first ? 5'd0 : tk_idx) == `VERIRUST_SEQ_LEN);
+    wr_addr = (phase_first ? 16'd0 : tq_base) + (phase_first ? 16'd0 : packed_idx);
     wr_data = requantize_q16_to_q8(acc_reg);
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         tq_idx <= 0;
         packed_idx <= 0;
         tk_idx <= 0;
+        tq_base <= 0;
+        tk_base <= 0;
+        prob_head_base <= 0;
         acc_reg <= 32'sd0;
     end else if (en) begin
-        tq = phase_first ? 0 : tq_idx;
-        packed_chan = phase_first ? 0 : packed_idx;
-        tk = phase_first ? 0 : tk_idx;
-
-        if (packed_chan < `VERIRUST_D_HEAD) begin
-            head = 0;
-            chan = packed_chan;
-        end else begin
-            head = 1;
-            chan = packed_chan - `VERIRUST_D_HEAD;
-        end
-
-        if (tk < `VERIRUST_SEQ_LEN) begin
+        if ((phase_first ? 5'd0 : tk_idx) < `VERIRUST_SEQ_LEN) begin
             prod32 = prob_value * v_value;
-            if (tk == 0)
+            if ((phase_first ? 5'd0 : tk_idx) == 0)
                 acc_reg <= prod32;
             else
                 acc_reg <= acc_reg + prod32;
         end
 
-        if (tk == `VERIRUST_SEQ_LEN) begin
+        if ((phase_first ? 5'd0 : tk_idx) == `VERIRUST_SEQ_LEN) begin
             tk_idx <= 0;
-            if (packed_chan == (`VERIRUST_D_MODEL - 1)) begin
+            tk_base <= 0;
+            if ((phase_first ? 6'd0 : packed_idx) == (`VERIRUST_D_MODEL - 1)) begin
                 packed_idx <= 0;
-                if (tq == (`VERIRUST_SEQ_LEN - 1))
+                if ((phase_first ? 5'd0 : tq_idx) == (`VERIRUST_SEQ_LEN - 1)) begin
                     tq_idx <= 0;
-                else
-                    tq_idx <= tq + 1;
+                    tq_base <= 0;
+                    prob_head_base <= 0;
+                end else begin
+                    tq_idx <= (phase_first ? 5'd0 : tq_idx) + 1'b1;
+                    tq_base <= (phase_first ? 16'd0 : tq_base) + `VERIRUST_D_MODEL;
+                    prob_head_base <= (phase_first ? 16'd0 : prob_head_base) + `VERIRUST_SEQ_LEN;
+                end
             end else begin
-                packed_idx <= packed_chan + 1;
-                tq_idx <= tq;
+                packed_idx <= (phase_first ? 6'd0 : packed_idx) + 1'b1;
+                tq_idx <= phase_first ? 5'd0 : tq_idx;
+                tq_base <= phase_first ? 16'd0 : tq_base;
+                prob_head_base <= phase_first ? 16'd0 : prob_head_base;
             end
         end else begin
-            tq_idx <= tq;
-            packed_idx <= packed_chan;
-            tk_idx <= tk + 1;
+            tq_idx <= phase_first ? 5'd0 : tq_idx;
+            packed_idx <= phase_first ? 6'd0 : packed_idx;
+            tk_idx <= (phase_first ? 5'd0 : tk_idx) + 1'b1;
+            tq_base <= phase_first ? 16'd0 : tq_base;
+            prob_head_base <= phase_first ? 16'd0 : prob_head_base;
+            tk_base <= (phase_first ? 16'd0 : tk_base) + `VERIRUST_D_MODEL;
         end
     end
 end

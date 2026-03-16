@@ -25,7 +25,6 @@ output reg [15:0] wr_addr;
 output reg signed [15:0] wr_data;
 
 reg [15:0] idx_reg;
-integer idx;
 reg signed [31:0] sum32;
 
 function signed [15:0] saturate_i16;
@@ -41,24 +40,22 @@ function signed [15:0] saturate_i16;
 endfunction
 
 always @* begin
-    idx = phase_first ? 0 : idx_reg;
-    rd_addr = idx;
-    wr_addr = idx;
+    rd_addr = phase_first ? 16'd0 : idx_reg;
+    wr_addr = phase_first ? 16'd0 : idx_reg;
     wr_en = en;
     sum32 = a_value;
     sum32 = sum32 + b_value;
     wr_data = saturate_i16(sum32);
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         idx_reg <= 0;
     end else if (en) begin
-        idx = phase_first ? 0 : idx_reg;
-        if (idx == (LEN - 1))
+        if ((phase_first ? 16'd0 : idx_reg) == (LEN - 1))
             idx_reg <= 0;
         else
-            idx_reg <= idx + 1;
+            idx_reg <= (phase_first ? 16'd0 : idx_reg) + 1'b1;
     end
 end
 

@@ -1,0 +1,7 @@
+read_verilog -Irtl -Irtl/generated rtl/verirust_ctrl.v rtl/verirust_stage_embed_tok.v rtl/verirust_stage_embed_add.v rtl/verirust_stage_rmsnorm.v rtl/verirust_stage_matmul.v rtl/verirust_stage_score.v rtl/verirust_stage_softmax.v rtl/verirust_stage_ctx.v rtl/verirust_stage_resid.v rtl/verirust_stage_ffn1.v rtl/verirust_stage_relu.v rtl/verirust_frozen.v
+hierarchy -check -top verirust_frozen
+check
+proc
+opt
+opt_clean
+stat

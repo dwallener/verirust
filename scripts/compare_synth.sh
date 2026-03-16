@@ -4,8 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${ROOT}/reports/yosys"
 MODE="${1:-quick}"
+LIBRARY="${2:-nangate}"
 
 case "${MODE}" in
+  lite)
+    FLEX_SCRIPT="synth/verirust_flexible_lite.ys"
+    FROZEN_SCRIPT="synth/verirust_frozen_lite.ys"
+    FLEX_LOG="${OUT_DIR}/flexible_lite.log"
+    FROZEN_LOG="${OUT_DIR}/frozen_lite.log"
+    ;;
   quick)
     FLEX_SCRIPT="synth/verirust_flexible_quick.ys"
     FROZEN_SCRIPT="synth/verirust_frozen_quick.ys"
@@ -19,7 +26,7 @@ case "${MODE}" in
     FROZEN_LOG="${OUT_DIR}/frozen_full.log"
     ;;
   *)
-    echo "usage: $0 [quick|full]" >&2
+    echo "usage: $0 [lite|quick|full] [nangate|sky130|plain]" >&2
     exit 2
     ;;
 esac
@@ -28,8 +35,8 @@ mkdir -p "${OUT_DIR}"
 
 cd "${ROOT}"
 
-"${ROOT}/scripts/synth_flexible.sh" "${MODE}" >/dev/null
-"${ROOT}/scripts/synth_frozen.sh" "${MODE}" >/dev/null
+"${ROOT}/scripts/synth_flexible.sh" "${MODE}" "${LIBRARY}" >/dev/null
+"${ROOT}/scripts/synth_frozen.sh" "${MODE}" "${LIBRARY}" >/dev/null
 
 extract_metric() {
     local label="$1"

@@ -39,15 +39,13 @@ output reg signed [15:0] wr_data;
 
 reg [15:0] row_idx;
 reg [15:0] step_idx;
+reg [15:0] row_base;
 reg signed [31:0] sum_sq_reg;
 reg signed [15:0] rsqrt_reg;
-
-integer row;
-integer step;
-integer chan;
 reg signed [31:0] mean_sq;
 reg signed [31:0] prod32;
 reg signed [31:0] tmp32;
+reg [15:0] chan_idx;
 
 function signed [15:0] saturate_i16;
     input signed [31:0] x;
@@ -74,61 +72,62 @@ function signed [15:0] requantize_q16_to_q8;
 endfunction
 
 always @* begin
-    row = phase_first ? 0 : row_idx;
-    step = phase_first ? 0 : step_idx;
-    chan = step - (COLS + 1);
-    in_rd_addr = row * COLS;
+    chan_idx = (phase_first ? 16'd0 : step_idx) - (COLS + 1);
+    in_rd_addr = phase_first ? 16'd0 : row_base;
     weight_addr = 16'd0;
     rsqrt_addr = 16'd0;
     use_weight = 1'b0;
     use_rsqrt = 1'b0;
-    wr_en = en && (step > COLS);
-    wr_addr = row * COLS + chan;
+    wr_en = en && ((phase_first ? 16'd0 : step_idx) > COLS);
+    wr_addr = (phase_first ? 16'd0 : row_base) + chan_idx;
     wr_data = 16'sd0;
 
-    if (step < COLS) begin
-        in_rd_addr = row * COLS + step;
-    end else if (step == COLS) begin
+    if ((phase_first ? 16'd0 : step_idx) < COLS) begin
+        in_rd_addr = (phase_first ? 16'd0 : row_base) + (phase_first ? 16'd0 : step_idx);
+    end else if ((phase_first ? 16'd0 : step_idx) == COLS) begin
         mean_sq = (sum_sq_reg * INV_D_MODEL_Q16) >>> 16;
         rsqrt_addr = ((mean_sq + EPS_Q16) * 4095) / (8 * 65536);
         use_rsqrt = 1'b1;
     end else begin
-        in_rd_addr = row * COLS + chan;
-        weight_addr = chan;
+        in_rd_addr = (phase_first ? 16'd0 : row_base) + chan_idx;
+        weight_addr = chan_idx;
         use_weight = 1'b1;
         tmp32 = in_value * rsqrt_reg;
         wr_data = requantize_q16_to_q8(requantize_q16_to_q8(tmp32) * weight_value);
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         row_idx <= 0;
         step_idx <= 0;
+        row_base <= 0;
         sum_sq_reg <= 32'sd0;
         rsqrt_reg <= 16'sd0;
     end else if (en) begin
-        row = phase_first ? 0 : row_idx;
-        step = phase_first ? 0 : step_idx;
-        if (step < COLS) begin
+        if ((phase_first ? 16'd0 : step_idx) < COLS) begin
             prod32 = in_value * in_value;
-            if (step == 0)
+            if ((phase_first ? 16'd0 : step_idx) == 0)
                 sum_sq_reg <= prod32;
             else
                 sum_sq_reg <= sum_sq_reg + prod32;
-        end else if (step == COLS) begin
+        end else if ((phase_first ? 16'd0 : step_idx) == COLS) begin
             rsqrt_reg <= rsqrt_value;
         end
 
-        if (step == ((2 * COLS))) begin
+        if ((phase_first ? 16'd0 : step_idx) == ((2 * COLS))) begin
             step_idx <= 0;
-            if (row == (ROWS - 1))
+            if ((phase_first ? 16'd0 : row_idx) == (ROWS - 1)) begin
                 row_idx <= 0;
-            else
-                row_idx <= row + 1;
+                row_base <= 0;
+            end else begin
+                row_idx <= (phase_first ? 16'd0 : row_idx) + 1'b1;
+                row_base <= (phase_first ? 16'd0 : row_base) + COLS;
+            end
         end else begin
-            row_idx <= row;
-            step_idx <= step + 1;
+            row_idx <= phase_first ? 16'd0 : row_idx;
+            row_base <= phase_first ? 16'd0 : row_base;
+            step_idx <= (phase_first ? 16'd0 : step_idx) + 1'b1;
         end
     end
 end

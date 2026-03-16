@@ -30,12 +30,12 @@ reg [1:0] head_idx;
 reg [4:0] tq_idx;
 reg [4:0] tk_idx;
 reg [4:0] d_idx;
+reg [5:0] head_chan_base;
+reg [15:0] q_row_base;
+reg [15:0] k_row_base;
+reg [15:0] score_head_base;
+reg [15:0] score_row_base;
 reg signed [31:0] acc_reg;
-
-integer head;
-integer tq;
-integer tk;
-integer inner;
 reg signed [31:0] prod32;
 reg signed [31:0] tmp32;
 
@@ -64,63 +64,79 @@ function signed [15:0] requantize_q16_to_q8;
 endfunction
 
 always @* begin
-    head = phase_first ? 0 : head_idx;
-    tq = phase_first ? 0 : tq_idx;
-    tk = phase_first ? 0 : tk_idx;
-    inner = phase_first ? 0 : d_idx;
-    q_rd_addr = tq * `VERIRUST_D_MODEL + head * `VERIRUST_D_HEAD + inner;
-    k_rd_addr = tk * `VERIRUST_D_MODEL + head * `VERIRUST_D_HEAD + inner;
-    wr_en = en && (inner == `VERIRUST_D_HEAD);
-    wr_addr = (head * `VERIRUST_SEQ_LEN + tq) * `VERIRUST_SEQ_LEN + tk;
+    q_rd_addr = (phase_first ? 16'd0 : q_row_base) + (phase_first ? 16'd0 : head_chan_base) + (phase_first ? 16'd0 : d_idx);
+    k_rd_addr = (phase_first ? 16'd0 : k_row_base) + (phase_first ? 16'd0 : head_chan_base) + (phase_first ? 16'd0 : d_idx);
+    wr_en = en && ((phase_first ? 5'd0 : d_idx) == `VERIRUST_D_HEAD);
+    wr_addr = (phase_first ? 16'd0 : score_head_base) + (phase_first ? 16'd0 : score_row_base) + (phase_first ? 16'd0 : tk_idx);
     tmp32 = requantize_q16_to_q8(acc_reg) * `VERIRUST_ATTN_SCALE_Q88;
     wr_data = requantize_q16_to_q8(tmp32);
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         head_idx <= 0;
         tq_idx <= 0;
         tk_idx <= 0;
         d_idx <= 0;
+        head_chan_base <= 0;
+        q_row_base <= 0;
+        k_row_base <= 0;
+        score_head_base <= 0;
+        score_row_base <= 0;
         acc_reg <= 32'sd0;
     end else if (en) begin
-        head = phase_first ? 0 : head_idx;
-        tq = phase_first ? 0 : tq_idx;
-        tk = phase_first ? 0 : tk_idx;
-        inner = phase_first ? 0 : d_idx;
-
-        if (inner < `VERIRUST_D_HEAD) begin
+        if ((phase_first ? 5'd0 : d_idx) < `VERIRUST_D_HEAD) begin
             prod32 = q_value * k_value;
-            if (inner == 0)
+            if ((phase_first ? 5'd0 : d_idx) == 0)
                 acc_reg <= prod32;
             else
                 acc_reg <= acc_reg + prod32;
         end
 
-        if (inner == `VERIRUST_D_HEAD) begin
+        if ((phase_first ? 5'd0 : d_idx) == `VERIRUST_D_HEAD) begin
             d_idx <= 0;
-            if (tk == (`VERIRUST_SEQ_LEN - 1)) begin
+            if ((phase_first ? 5'd0 : tk_idx) == (`VERIRUST_SEQ_LEN - 1)) begin
                 tk_idx <= 0;
-                if (tq == (`VERIRUST_SEQ_LEN - 1)) begin
+                k_row_base <= 0;
+                if ((phase_first ? 5'd0 : tq_idx) == (`VERIRUST_SEQ_LEN - 1)) begin
                     tq_idx <= 0;
-                    if (head == (`VERIRUST_N_HEADS - 1))
+                    q_row_base <= 0;
+                    score_row_base <= 0;
+                    if ((phase_first ? 2'd0 : head_idx) == (`VERIRUST_N_HEADS - 1)) begin
                         head_idx <= 0;
-                    else
-                        head_idx <= head + 1;
+                        head_chan_base <= 0;
+                        score_head_base <= 0;
+                    end else begin
+                        head_idx <= (phase_first ? 2'd0 : head_idx) + 1'b1;
+                        head_chan_base <= (phase_first ? 6'd0 : head_chan_base) + `VERIRUST_D_HEAD;
+                        score_head_base <= (phase_first ? 16'd0 : score_head_base) + (`VERIRUST_SEQ_LEN * `VERIRUST_SEQ_LEN);
+                    end
                 end else begin
-                    tq_idx <= tq + 1;
-                    head_idx <= head;
+                    tq_idx <= (phase_first ? 5'd0 : tq_idx) + 1'b1;
+                    head_idx <= phase_first ? 2'd0 : head_idx;
+                    head_chan_base <= phase_first ? 6'd0 : head_chan_base;
+                    q_row_base <= (phase_first ? 16'd0 : q_row_base) + `VERIRUST_D_MODEL;
+                    score_row_base <= (phase_first ? 16'd0 : score_row_base) + `VERIRUST_SEQ_LEN;
                 end
             end else begin
-                tk_idx <= tk + 1;
-                tq_idx <= tq;
-                head_idx <= head;
+                tk_idx <= (phase_first ? 5'd0 : tk_idx) + 1'b1;
+                tq_idx <= phase_first ? 5'd0 : tq_idx;
+                head_idx <= phase_first ? 2'd0 : head_idx;
+                head_chan_base <= phase_first ? 6'd0 : head_chan_base;
+                q_row_base <= phase_first ? 16'd0 : q_row_base;
+                score_row_base <= phase_first ? 16'd0 : score_row_base;
+                k_row_base <= (phase_first ? 16'd0 : k_row_base) + `VERIRUST_D_MODEL;
             end
         end else begin
-            head_idx <= head;
-            tq_idx <= tq;
-            tk_idx <= tk;
-            d_idx <= inner + 1;
+            head_idx <= phase_first ? 2'd0 : head_idx;
+            tq_idx <= phase_first ? 5'd0 : tq_idx;
+            tk_idx <= phase_first ? 5'd0 : tk_idx;
+            d_idx <= (phase_first ? 5'd0 : d_idx) + 1'b1;
+            head_chan_base <= phase_first ? 6'd0 : head_chan_base;
+            q_row_base <= phase_first ? 16'd0 : q_row_base;
+            k_row_base <= phase_first ? 16'd0 : k_row_base;
+            score_head_base <= phase_first ? 16'd0 : score_head_base;
+            score_row_base <= phase_first ? 16'd0 : score_row_base;
         end
     end
 end

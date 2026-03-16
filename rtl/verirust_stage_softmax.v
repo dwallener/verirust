@@ -48,12 +48,9 @@ reg signed [31:0] sum_reg;
 reg signed [15:0] inv_reg;
 reg signed [15:0] exp_temp [0:`VERIRUST_SEQ_LEN-1];
 reg signed [15:0] post_temp [0:`VERIRUST_SEQ_LEN-1];
+reg [15:0] head_base;
+reg [15:0] row_base_reg;
 
-integer head;
-integer tq;
-integer step;
-integer tk;
-integer row_base;
 reg signed [15:0] masked_val;
 reg signed [31:0] tmp32;
 reg signed [15:0] clamped_val;
@@ -84,7 +81,7 @@ endfunction
 
 function [9:0] exp_lookup_addr;
     input signed [15:0] shifted_q88;
-    integer local_clamped;
+    reg signed [31:0] local_clamped;
     begin
         local_clamped = shifted_q88;
         if (local_clamped < -2048)
@@ -97,7 +94,7 @@ endfunction
 
 function [11:0] recip_lookup_addr_fn;
     input signed [31:0] value_q16;
-    integer local_clamped;
+    reg signed [31:0] local_clamped;
     begin
         local_clamped = value_q16;
         if (local_clamped < 0)
@@ -109,12 +106,7 @@ function [11:0] recip_lookup_addr_fn;
 endfunction
 
 always @* begin
-    head = phase_first ? 0 : head_idx;
-    tq = phase_first ? 0 : tq_idx;
-    step = phase_first ? 0 : step_idx;
-    row_base = (head * `VERIRUST_SEQ_LEN + tq) * `VERIRUST_SEQ_LEN;
-
-    score_pre_rd_addr = row_base;
+    score_pre_rd_addr = phase_first ? 16'd0 : row_base_reg;
     use_exp_lut = 1'b0;
     exp_lut_addr = 16'd0;
     use_recip_lut = 1'b0;
@@ -126,18 +118,16 @@ always @* begin
     prob_wr_addr = 16'd0;
     prob_wr_data = 16'sd0;
 
-    if (step < `VERIRUST_SEQ_LEN) begin
-        tk = step;
-        score_pre_rd_addr = row_base + tk;
+    if ((phase_first ? 6'd0 : step_idx) < `VERIRUST_SEQ_LEN) begin
+        score_pre_rd_addr = (phase_first ? 16'd0 : row_base_reg) + (phase_first ? 16'd0 : step_idx);
         masked_val = score_pre_value;
-        if (tk > tq)
+        if ((phase_first ? 6'd0 : step_idx) > (phase_first ? 5'd0 : tq_idx))
             masked_val = `VERIRUST_MASK_NEG;
         post_wr_en = en;
-        post_wr_addr = row_base + tk;
+        post_wr_addr = (phase_first ? 16'd0 : row_base_reg) + (phase_first ? 16'd0 : step_idx);
         post_wr_data = masked_val;
-    end else if (step < (2 * `VERIRUST_SEQ_LEN)) begin
-        tk = step - `VERIRUST_SEQ_LEN;
-        tmp32 = post_temp[tk] - max_reg;
+    end else if ((phase_first ? 6'd0 : step_idx) < (2 * `VERIRUST_SEQ_LEN)) begin
+        tmp32 = post_temp[(phase_first ? 6'd0 : step_idx) - `VERIRUST_SEQ_LEN] - max_reg;
         if (tmp32 < -2048)
             clamped_val = -16'sd2048;
         else if (tmp32 > 0)
@@ -146,67 +136,70 @@ always @* begin
             clamped_val = tmp32[15:0];
         use_exp_lut = 1'b1;
         exp_lut_addr = exp_lookup_addr(clamped_val);
-    end else if (step == (2 * `VERIRUST_SEQ_LEN)) begin
+    end else if ((phase_first ? 6'd0 : step_idx) == (2 * `VERIRUST_SEQ_LEN)) begin
         use_recip_lut = 1'b1;
         recip_lut_addr = recip_lookup_addr_fn(sum_reg <<< `VERIRUST_FRAC_BITS);
     end else begin
-        tk = step - ((2 * `VERIRUST_SEQ_LEN) + 1);
         prob_wr_en = en;
-        prob_wr_addr = row_base + tk;
-        prob_wr_data = requantize_q16_to_q8(exp_temp[tk] * inv_reg);
+        prob_wr_addr = (phase_first ? 16'd0 : row_base_reg) + ((phase_first ? 6'd0 : step_idx) - ((2 * `VERIRUST_SEQ_LEN) + 1));
+        prob_wr_data = requantize_q16_to_q8(exp_temp[(phase_first ? 6'd0 : step_idx) - ((2 * `VERIRUST_SEQ_LEN) + 1)] * inv_reg);
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk) begin
     if (!rst_n) begin
         head_idx <= 0;
         tq_idx <= 0;
         step_idx <= 0;
+        head_base <= 0;
+        row_base_reg <= 0;
         max_reg <= -16'sd32768;
         sum_reg <= 32'sd0;
         inv_reg <= 16'sd0;
     end else if (en) begin
-        head = phase_first ? 0 : head_idx;
-        tq = phase_first ? 0 : tq_idx;
-        step = phase_first ? 0 : step_idx;
-
-        if (step < `VERIRUST_SEQ_LEN) begin
-            tk = step;
+        if ((phase_first ? 6'd0 : step_idx) < `VERIRUST_SEQ_LEN) begin
             masked_val = score_pre_value;
-            if (tk > tq)
+            if ((phase_first ? 6'd0 : step_idx) > (phase_first ? 5'd0 : tq_idx))
                 masked_val = `VERIRUST_MASK_NEG;
-            post_temp[tk] <= masked_val;
-            if (step == 0)
+            post_temp[phase_first ? 6'd0 : step_idx] <= masked_val;
+            if ((phase_first ? 6'd0 : step_idx) == 0)
                 max_reg <= masked_val;
             else if (masked_val > max_reg)
                 max_reg <= masked_val;
-        end else if (step < (2 * `VERIRUST_SEQ_LEN)) begin
-            tk = step - `VERIRUST_SEQ_LEN;
-            exp_temp[tk] <= exp_lut_value;
-            if (tk == 0)
+        end else if ((phase_first ? 6'd0 : step_idx) < (2 * `VERIRUST_SEQ_LEN)) begin
+            exp_temp[(phase_first ? 6'd0 : step_idx) - `VERIRUST_SEQ_LEN] <= exp_lut_value;
+            if (((phase_first ? 6'd0 : step_idx) - `VERIRUST_SEQ_LEN) == 0)
                 sum_reg <= exp_lut_value;
             else
                 sum_reg <= sum_reg + exp_lut_value;
-        end else if (step == (2 * `VERIRUST_SEQ_LEN)) begin
+        end else if ((phase_first ? 6'd0 : step_idx) == (2 * `VERIRUST_SEQ_LEN)) begin
             inv_reg <= recip_lut_value;
         end
 
-        if (step == (3 * `VERIRUST_SEQ_LEN)) begin
+        if ((phase_first ? 6'd0 : step_idx) == (3 * `VERIRUST_SEQ_LEN)) begin
             step_idx <= 0;
-            if (tq == (`VERIRUST_SEQ_LEN - 1)) begin
+            if ((phase_first ? 5'd0 : tq_idx) == (`VERIRUST_SEQ_LEN - 1)) begin
                 tq_idx <= 0;
-                if (head == (`VERIRUST_N_HEADS - 1))
+                row_base_reg <= phase_first ? 16'd0 : head_base;
+                if ((phase_first ? 2'd0 : head_idx) == (`VERIRUST_N_HEADS - 1)) begin
                     head_idx <= 0;
-                else
-                    head_idx <= head + 1;
+                    head_base <= 0;
+                end else begin
+                    head_idx <= (phase_first ? 2'd0 : head_idx) + 1'b1;
+                    head_base <= (phase_first ? 16'd0 : head_base) + (`VERIRUST_SEQ_LEN * `VERIRUST_SEQ_LEN);
+                end
             end else begin
-                tq_idx <= tq + 1;
-                head_idx <= head;
+                tq_idx <= (phase_first ? 5'd0 : tq_idx) + 1'b1;
+                head_idx <= phase_first ? 2'd0 : head_idx;
+                head_base <= phase_first ? 16'd0 : head_base;
+                row_base_reg <= (phase_first ? 16'd0 : row_base_reg) + `VERIRUST_SEQ_LEN;
             end
         end else begin
-            head_idx <= head;
-            tq_idx <= tq;
-            step_idx <= step + 1;
+            head_idx <= phase_first ? 2'd0 : head_idx;
+            tq_idx <= phase_first ? 5'd0 : tq_idx;
+            head_base <= phase_first ? 16'd0 : head_base;
+            row_base_reg <= phase_first ? 16'd0 : row_base_reg;
+            step_idx <= (phase_first ? 6'd0 : step_idx) + 1'b1;
         end
     end
 end

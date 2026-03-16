@@ -534,142 +534,114 @@ verirust_stage_ctx stage_ctx (
     .wr_data(ctx_wr_data)
 );
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        logits_rd_data <= 16'sd0;
-    end else begin
-        logits_rd_data <= logits_mem[logits_rd_addr];
-    end
+always @(posedge clk) begin
+    logits_rd_data <= logits_mem[logits_rd_addr];
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (en_idle) begin
-    end
-end
-
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (embed_tok_wr_en) begin
+always @(posedge clk) begin
+    if (embed_tok_wr_en) begin
         x_tok[embed_tok_wr_addr] <= embed_tok_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (embed_add_wr_en) begin
+always @(posedge clk) begin
+    if (embed_add_wr_en) begin
         x_in[embed_add_wr_addr] <= embed_add_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (norm1_wr_en) begin
+always @(posedge clk) begin
+    if (norm1_wr_en) begin
         norm1_out[norm1_wr_addr] <= norm1_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (q_wr_en) begin
+always @(posedge clk) begin
+    if (q_wr_en) begin
         q_flat[q_wr_addr] <= q_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (k_wr_en) begin
+always @(posedge clk) begin
+    if (k_wr_en) begin
         k_flat[k_wr_addr] <= k_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (v_wr_en) begin
+always @(posedge clk) begin
+    if (v_wr_en) begin
         v_flat[v_wr_addr] <= v_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (score_wr_en) begin
+always @(posedge clk) begin
+    if (score_wr_en) begin
         scores_pre_mask[score_wr_addr] <= score_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (softmax_post_wr_en) begin
+always @(posedge clk) begin
+    if (softmax_post_wr_en) begin
         scores_post_mask[softmax_post_wr_addr] <= softmax_post_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (softmax_prob_wr_en) begin
+always @(posedge clk) begin
+    if (softmax_prob_wr_en) begin
         attn_probs[softmax_prob_wr_addr] <= softmax_prob_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (ctx_wr_en) begin
+always @(posedge clk) begin
+    if (ctx_wr_en) begin
         ctx_flat[ctx_wr_addr] <= ctx_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (resid1_wr_en) begin
+always @(posedge clk) begin
+    if (resid1_wr_en) begin
         resid1_out[resid1_wr_addr] <= resid1_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (norm2_wr_en) begin
+always @(posedge clk) begin
+    if (norm2_wr_en) begin
         norm2_out[norm2_wr_addr] <= norm2_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (ffn1_wr_en) begin
+always @(posedge clk) begin
+    if (ffn1_wr_en) begin
         ffn_h1[ffn1_wr_addr] <= ffn1_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (relu_wr_en) begin
+always @(posedge clk) begin
+    if (relu_wr_en) begin
         ffn_relu[relu_wr_addr] <= relu_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (attn_out_wr_en) begin
+always @(posedge clk) begin
+    if (attn_out_wr_en) begin
         attn_out[attn_out_wr_addr] <= attn_out_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (ffn2_wr_en) begin
+always @(posedge clk) begin
+    if (ffn2_wr_en) begin
         ffn_out[ffn2_wr_addr] <= ffn2_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (resid2_wr_en) begin
+always @(posedge clk) begin
+    if (resid2_wr_en) begin
         block_out[resid2_wr_addr] <= resid2_wr_data;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else if (logits_wr_en) begin
+always @(posedge clk) begin
+    if (logits_wr_en) begin
         logits_mem[logits_wr_addr] <= logits_wr_data;
     end
 end

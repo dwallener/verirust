@@ -93,30 +93,27 @@ function signed [15:0] read_space_word;
     end
 endfunction
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-    end else begin
-        if (cfg_we) begin
-            case (cfg_space)
-                CFG_TOK_EMBED: tok_embedding[cfg_addr] <= cfg_wdata;
-                CFG_POS_EMBED: pos_embedding[cfg_addr] <= cfg_wdata;
-                CFG_NORM1:     norm1_weight[cfg_addr] <= cfg_wdata;
-                CFG_W_Q:       w_q[cfg_addr] <= cfg_wdata;
-                CFG_W_K:       w_k[cfg_addr] <= cfg_wdata;
-                CFG_W_V:       w_v[cfg_addr] <= cfg_wdata;
-                CFG_W_O:       w_o[cfg_addr] <= cfg_wdata;
-                CFG_NORM2:     norm2_weight[cfg_addr] <= cfg_wdata;
-                CFG_W1:        w1[cfg_addr] <= cfg_wdata;
-                CFG_W2:        w2[cfg_addr] <= cfg_wdata;
-                CFG_LM_HEAD:   lm_head[cfg_addr] <= cfg_wdata;
-                CFG_EXP_LUT:   exp_lut[cfg_addr] <= cfg_wdata;
-                CFG_RSQRT_LUT: rsqrt_lut[cfg_addr] <= cfg_wdata;
-                CFG_RECIP_LUT: recip_lut[cfg_addr] <= cfg_wdata;
-            endcase
-        end
-        if (token_we)
-            token_mem[token_addr] <= token_wdata;
+always @(posedge clk) begin
+    if (cfg_we) begin
+        case (cfg_space)
+            CFG_TOK_EMBED: tok_embedding[cfg_addr] <= cfg_wdata;
+            CFG_POS_EMBED: pos_embedding[cfg_addr] <= cfg_wdata;
+            CFG_NORM1:     norm1_weight[cfg_addr] <= cfg_wdata;
+            CFG_W_Q:       w_q[cfg_addr] <= cfg_wdata;
+            CFG_W_K:       w_k[cfg_addr] <= cfg_wdata;
+            CFG_W_V:       w_v[cfg_addr] <= cfg_wdata;
+            CFG_W_O:       w_o[cfg_addr] <= cfg_wdata;
+            CFG_NORM2:     norm2_weight[cfg_addr] <= cfg_wdata;
+            CFG_W1:        w1[cfg_addr] <= cfg_wdata;
+            CFG_W2:        w2[cfg_addr] <= cfg_wdata;
+            CFG_LM_HEAD:   lm_head[cfg_addr] <= cfg_wdata;
+            CFG_EXP_LUT:   exp_lut[cfg_addr] <= cfg_wdata;
+            CFG_RSQRT_LUT: rsqrt_lut[cfg_addr] <= cfg_wdata;
+            CFG_RECIP_LUT: recip_lut[cfg_addr] <= cfg_wdata;
+        endcase
     end
+    if (token_we)
+        token_mem[token_addr] <= token_wdata;
 end
 
 always @* begin
