@@ -80,6 +80,7 @@ Log output:
 	•	quick mode writes `*_quick.log`
 	•	full mode writes `*_full.log`
 	•	microarchitecture intent is documented in `/Users/damir00/Sandbox/verirust/docs/MICROARCHITECTURE.md`
+	•	OpenROAD / ORFS bring-up is documented in `/Users/damir00/Sandbox/verirust/docs/OPENROAD.md`
 
 Current synthesis snapshot:
 
