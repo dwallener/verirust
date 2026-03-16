@@ -1,5 +1,72 @@
 Below is a clean spec skeleton for Phase 1 (Rust reference) and Phase 2 (Verilog-equivalent flexible hardware). The goal is not “a transformer.” The goal is one exact transformer definition that both implementations realize identically.
 
+Synthesis flow
+
+The repository now supports two synthesis targets:
+	•	flexible RTL: mutable weights and LUTs loaded through a configuration bus
+	•	frozen RTL: weights and LUTs compiled into the design as constants
+	•	synthesizable logic is written in plain Verilog (`.v`), not SystemVerilog
+	•	SystemVerilog is reserved for harnesses and test benches only
+
+Top modules:
+	•	`verirust_flexible_synth`
+	•	`verirust_frozen`
+
+Yosys scripts:
+	•	`/Users/damir00/Sandbox/verirust/synth/verirust_flexible_quick.ys`
+	•	`/Users/damir00/Sandbox/verirust/synth/verirust_flexible.ys`
+	•	`/Users/damir00/Sandbox/verirust/synth/verirust_frozen_quick.ys`
+	•	`/Users/damir00/Sandbox/verirust/synth/verirust_frozen.ys`
+
+Shell entry points:
+	•	`/Users/damir00/Sandbox/verirust/scripts/elab_flexible.sh`
+	•	`/Users/damir00/Sandbox/verirust/scripts/elab_frozen.sh`
+	•	`/Users/damir00/Sandbox/verirust/scripts/synth_flexible.sh [quick|full]`
+	•	`/Users/damir00/Sandbox/verirust/scripts/synth_frozen.sh [quick|full]`
+	•	`/Users/damir00/Sandbox/verirust/scripts/compare_synth.sh [quick|full]`
+
+Elaboration-only usage:
+	•	`elab_flexible.sh` is the lightest Yosys sanity check for the flexible top
+	•	`elab_frozen.sh` is the lightest Yosys sanity check for the frozen top
+	•	both run `hierarchy -check` and `ls`, but no optimization or synthesis passes
+	•	both tops are sequential multi-cycle datapaths; they do not attempt single-cycle whole-model evaluation
+	•	both tops now elaborate through the same shared stage-module set:
+	•	`verirust_stage_embed_tok`
+	•	`verirust_stage_embed_add`
+	•	`verirust_stage_rmsnorm`
+	•	`verirust_stage_matmul`
+	•	`verirust_stage_score`
+	•	`verirust_stage_softmax`
+	•	`verirust_stage_ctx`
+	•	`verirust_stage_resid`
+	•	`verirust_stage_ffn1`
+	•	`verirust_stage_relu`
+	•	the intended invariant is: frozen and flexible share the same controller/datapath/math, with storage implementation as the only conceptual difference
+
+Mode definitions:
+	•	`quick` runs `check`, `proc`, `opt`, `memory`, `techmap`, and `stat` only
+	•	`full` adds `abc -liberty +/techlibs/generic/generic.lib` before `stat`
+
+Frozen-RTL generation:
+	•	before any frozen synthesis run, execute `cargo run --bin generate_frozen_rtl`
+	•	this regenerates `rtl/generated/verirust_frozen_consts.svh` from:
+	•	`weights/weights_v1.bin`
+	•	`spec/luts/exp_lut.bin`
+	•	`spec/luts/rsqrt_lut.bin`
+	•	`spec/luts/recip_lut.bin`
+
+Recommended usage:
+	1.	run `synth_flexible.sh quick`
+	2.	run `synth_frozen.sh quick`
+	3.	compare structural size first
+	4.	run `compare_synth.sh full` only when mapped results are worth the runtime
+
+Log output:
+	•	all synthesis logs are written under `reports/yosys/`
+	•	quick mode writes `*_quick.log`
+	•	full mode writes `*_full.log`
+	•	microarchitecture intent is documented in `/Users/damir00/Sandbox/verirust/docs/MICROARCHITECTURE.md`
+
 ⸻
 
 Top-level objective
@@ -701,4 +768,3 @@ If you want, next I can turn this into a repo-ready spec document with:
 	•	exact tensor list
 	•	exact fixed-point rules
 	•	exact checkpoint names.
-
